@@ -1,6 +1,6 @@
-import sqlite3, uuid, json
+import sqlite3, uuid, json, csv, io
 from datetime import datetime
-from flask import Flask, render_template, request, jsonify, redirect, url_for, session
+from flask import Flask, render_template, request, jsonify, redirect, url_for, session, make_response
 
 app = Flask(__name__)
 
@@ -154,7 +154,7 @@ def get_scores(game_id):
     cursor = conn.cursor()
     
     cursor.execute('''
-        SELECT round_number, player_name, score, bid, made_bid, notes, timestamp
+        SELECT id, round_number, player_name, score, bid, made_bid, notes, timestamp
         FROM scores WHERE game_id = ? ORDER BY round_number, timestamp
     ''', (game_id,))
     
@@ -162,8 +162,8 @@ def get_scores(game_id):
     conn.close()
     
     return jsonify([{
-        'round': s[0], 'player': s[1], 'score': s[2], 
-        'bid': s[3], 'made_bid': s[4], 'notes': s[5], 'timestamp': s[6]
+        'id': s[0], 'round': s[1], 'player': s[2], 'score': s[3], 
+        'bid': s[4], 'made_bid': s[5], 'notes': s[6], 'timestamp': s[7]
     } for s in scores])
 
 @app.route('/api/recent-games')
@@ -204,7 +204,7 @@ def get_game_details(game_id):
         return jsonify({'error': 'Game not found'}), 404
     
     cursor.execute('''
-        SELECT round_number, player_name, score, bid, made_bid, notes, timestamp
+        SELECT id, round_number, player_name, score, bid, made_bid, notes, timestamp
         FROM scores WHERE game_id = ? ORDER BY round_number, timestamp
     ''', (game_id,))
     
@@ -219,10 +219,123 @@ def get_game_details(game_id):
             'status': game[6], 'data': json.loads(game[7]) if game[7] else {}
         },
         'scores': [{
-            'round': s[0], 'player': s[1], 'score': s[2],
-            'bid': s[3], 'made_bid': s[4], 'notes': s[5], 'timestamp': s[6]
+            'id': s[0], 'round': s[1], 'player': s[2], 'score': s[3],
+            'bid': s[4], 'made_bid': s[5], 'notes': s[6], 'timestamp': s[7]
         } for s in scores]
     })
+
+@app.route('/api/game/<game_id>/finish', methods=['POST'])
+def finish_game(game_id):
+    conn = sqlite3.connect('card_games.db')
+    cursor = conn.cursor()
+    
+    cursor.execute('''
+        UPDATE games 
+        SET status = 'completed', completed_at = CURRENT_TIMESTAMP 
+        WHERE id = ?
+    ''', (game_id,))
+    
+    conn.commit()
+    conn.close()
+    
+    return jsonify({'success': True, 'message': 'Game finished successfully'})
+
+@app.route('/api/game/<game_id>/export')
+def export_game(game_id):
+    conn = sqlite3.connect('card_games.db')
+    cursor = conn.cursor()
+    
+    cursor.execute('''
+        SELECT game_type, variant, players, created_at, completed_at, status
+        FROM games WHERE id = ?
+    ''', (game_id,))
+    
+    game = cursor.fetchone()
+    if not game:
+        return jsonify({'error': 'Game not found'}), 404
+    
+    cursor.execute('''
+        SELECT round_number, player_name, score, bid, made_bid, notes, timestamp
+        FROM scores WHERE game_id = ? ORDER BY round_number, timestamp
+    ''', (game_id,))
+    
+    scores = cursor.fetchall()
+    conn.close()
+    
+    output = io.StringIO()
+    writer = csv.writer(output)
+    
+    writer.writerow(['Game Information'])
+    writer.writerow(['Game ID', game_id])
+    writer.writerow(['Game Type', game[0].title()])
+    writer.writerow(['Variant', game[1] or 'Standard'])
+    writer.writerow(['Players', ', '.join(json.loads(game[2]) if game[2] else [])])
+    writer.writerow(['Created', game[3]])
+    writer.writerow(['Completed', game[4] or 'In Progress'])
+    writer.writerow(['Status', game[5]])
+    writer.writerow([])
+    
+    writer.writerow(['Round', 'Player', 'Score', 'Bid', 'Made Bid', 'Notes', 'Timestamp'])
+    
+    for score in scores:
+        writer.writerow(score)
+    
+    writer.writerow([])
+    writer.writerow(['Player Totals'])
+    players = json.loads(game[2]) if game[2] else []
+    for player in players:
+        total = sum(s[2] for s in scores if s[1] == player)
+        writer.writerow([player, total])
+    
+    response = make_response(output.getvalue())
+    response.headers["Content-Disposition"] = f"attachment; filename={game[0]}_{game_id[:8]}.csv"
+    response.headers["Content-type"] = "text/csv"
+    
+    return response
+
+@app.route('/api/game/<game_id>/reset', methods=['POST'])
+def reset_game(game_id):
+    conn = sqlite3.connect('card_games.db')
+    cursor = conn.cursor()
+    
+    cursor.execute('DELETE FROM scores WHERE game_id = ?', (game_id,))
+    
+    cursor.execute('''
+        UPDATE games 
+        SET status = 'active', completed_at = NULL 
+        WHERE id = ?
+    ''', (game_id,))
+    
+    conn.commit()
+    conn.close()
+    
+    return jsonify({'success': True, 'message': 'Game reset successfully'})
+
+@app.route('/api/game/<game_id>', methods=['DELETE'])
+def delete_game(game_id):
+    conn = sqlite3.connect('card_games.db')
+    cursor = conn.cursor()
+    
+    cursor.execute('DELETE FROM scores WHERE game_id = ?', (game_id,))
+    
+    cursor.execute('DELETE FROM games WHERE id = ?', (game_id,))
+    
+    conn.commit()
+    conn.close()
+    
+    return jsonify({'success': True, 'message': 'Game deleted successfully'})
+
+@app.route('/api/score/<int:score_id>', methods=['DELETE'])
+def delete_score(score_id):
+    conn = sqlite3.connect('card_games.db')
+    cursor = conn.cursor()
+    
+    cursor.execute('DELETE FROM scores WHERE id = ?', (score_id,))
+    
+    conn.commit()
+    conn.close()
+    
+    return jsonify({'success': True, 'message': 'Score deleted successfully'})
 
 @app.route('/history')
 def game_history():
