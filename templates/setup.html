@@ -1,0 +1,178 @@
+{% extends "base.html" %}
+
+{% block title %}Setup {{ game_type.title() }} Game{% endblock %}
+
+{% block content %}
+    <div class="game-header">
+        <h1 class="game-title-header">Setup New Game</h1>
+        <p class="game-subtitle">{{ game_type.title() }} - {{ variant.replace('_', ' ').title() }}</p>
+    </div>
+
+    <div class="card">
+        <form id="setup-form">
+            <div class="form-group">
+                <label class="form-label">Game Name (Optional)</label>
+                <input type="text" class="form-input" name="game_name" 
+                    placeholder="e.g., Saturday Evening Bridge">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Players</label>
+                <div id="players-container">
+                    <div class="flex gap-2 mb-2">
+                        <input type="text" class="form-input" name="player" 
+                            placeholder="Player 1" required>
+                        <button type="button" class="btn btn-secondary" onclick="removePlayer(this)" 
+                                style="display: none;">
+                            <i class="fa-solid fa-times"></i>
+                        </button>
+                    </div>
+                    <div class="flex gap-2 mb-2">
+                        <input type="text" class="form-input" name="player" 
+                            placeholder="Player 2" required>
+                        <button type="button" class="btn btn-secondary" onclick="removePlayer(this)">
+                            <i class="fa-solid fa-times"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <button type="button" class="btn btn-secondary mb-2" onclick="addPlayer()">
+                    <i class="fa-solid fa-plus"></i>
+                    Add Player
+                </button>
+                
+                <small style="color: #364e57; display: block;">
+                    Most {{ game_type }} variants work best with 2-4 players
+                </small>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Scoring Options</label>
+                <div style="display: grid; gap: 1rem;">
+                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                        <input type="checkbox" name="track_bids" checked>
+                        Track bids and contracts
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                        <input type="checkbox" name="auto_total" checked>
+                        Auto-calculate running totals
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                        <input type="checkbox" name="round_notes">
+                        Allow notes for each round
+                    </label>
+                </div>
+            </div>
+
+            <div class="flex gap-2">
+                <button type="submit" class="btn btn-primary btn-full">
+                    <i class="fa-solid fa-play"></i>
+                    Start Game
+                </button>
+            </div>
+        </form>
+    </div>
+
+    {% if gametype in ['bridge', 'rummy'] %}
+        <div class="text-center mt-4">
+            <a href="{{ url_for('select_variant', game_type=game_type) }}" class="btn btn-secondary">
+                <i class="fa-solid fa-arrow-left"></i>
+                Back to Variants
+            </a>
+        </div>
+    {% else %}
+        <div class="text-center mt-4">
+            <a href="{{ url_for('index') }}" class="btn btn-secondary">
+                <i class="fa-solid fa-arrow-left"></i>
+                Back to Games
+            </a>
+        </div>
+    {% endif %}
+
+    <script>
+        let playerCount = 2;
+
+        function addPlayer() {
+            if (playerCount >= 6) {
+                alert('Maximum 6 players supported');
+                return;
+            }
+            
+            playerCount++;
+            const container = document.getElementById('players-container');
+            const newPlayerDiv = document.createElement('div');
+            newPlayerDiv.className = 'flex gap-2 mb-2';
+            newPlayerDiv.innerHTML = `
+                <input type="text" class="form-input" name="player" 
+                    placeholder="Player ${playerCount}" required>
+                <button type="button" class="btn btn-secondary" onclick="removePlayer(this)">
+                    <i class="fa-solid fa-times"></i>
+                </button>
+            `;
+            container.appendChild(newPlayerDiv);
+        }
+
+        function removePlayer(button) {
+            const playerInputs = document.querySelectorAll('input[name="player"]');
+            if (playerInputs.length <= 2) {
+                alert('At least 2 players required');
+                return;
+            }
+            
+            button.parentElement.remove();
+            playerCount--;
+            
+            const remainingInputs = document.querySelectorAll('input[name="player"]');
+            remainingInputs.forEach((input, index) => {
+                input.placeholder = `Player ${index + 1}`;
+            });
+            
+            if (remainingInputs.length === 2) {
+                const firstRemoveBtn = remainingInputs[0].parentElement.querySelector('button');
+                if (firstRemoveBtn) {
+                    firstRemoveBtn.style.display = 'none';
+                }
+            }
+        }
+
+        document.getElementById('setup-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(e.target);
+            const players = [];
+            
+            const playerInputs = document.querySelectorAll('input[name="player"]');
+            playerInputs.forEach(input => {
+                if (input.value.trim()) {
+                    players.push(input.value.trim());
+                }
+            });
+            
+            if (players.length < 2) {
+                alert('At least 2 players required');
+                return;
+            }
+            
+            const params = new URLSearchParams();
+            players.forEach(player => params.append('players', player));
+            
+            if (formData.get('game_name')) {
+                params.append('game_name', formData.get('game_name'));
+            }
+            
+            if (formData.get('track_bids')) {
+                params.append('track_bids', 'true');
+            }
+            
+            if (formData.get('auto_total')) {
+                params.append('auto_total', 'true');
+            }
+            
+            if (formData.get('round_notes')) {
+                params.append('round_notes', 'true');
+            }
+            
+            window.location.href = `/play/{{ game_type }}/{{ variant }}?${params.toString()}`;
+        });
+    </script>
+{% endblock %}

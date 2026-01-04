@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+
+{% block title %}Card Game Scorer - Home{% endblock %}
+
+{% block content %}
+    <div class="text-center mb-4">
+        <h1 class="game-title-header" style="color: #2d3748; margin-bottom: 1rem;">Card Game Score Keeper</h1>
+        <p style="color: #84a5b1; font-size: 1.2rem;">Choose your game to start tracking scores</p>
+    </div>
+
+    <div class="card-grid">
+        <div class="card card-clickable game-card" onclick="selectGame('bridge')">
+            <div class="game-icon">
+                <i class="fa-solid fa-diamond"></i>
+            </div>
+            <h3 class="game-title">Bridge</h3>
+            <p class="game-description">
+                Various two-player adaptations of contract bridge including Draw Bridge, Double Dummy, and Memory Bridge.
+            </p>
+        </div>
+
+        <div class="card card-clickable game-card" onclick="selectGame('rummy')">
+            <div class="game-icon">
+                <i class="fa-solid fa-layer-group"></i>
+            </div>
+            <h3 class="game-title">Rummy</h3>
+            <p class="game-description">
+                Classic rummy games including Basic Rummy, Gin Rummy, and Oklahoma Rummy with proper melding rules.
+            </p>
+        </div>
+
+        <div class="card card-clickable game-card" onclick="selectGame('canasta')">
+            <div class="game-icon">
+                <i class="fa-solid fa-clone"></i>
+            </div>
+            <h3 class="game-title">Canasta</h3>
+            <p class="game-description">
+                Partnership card game with canasta formations, minimum meld requirements, and special scoring rules.
+            </p>
+        </div>
+
+        <div class="card card-clickable game-card" onclick="selectGame('hearts')">
+            <div class="game-icon">
+                <i class="fa-solid fa-heart"></i>
+            </div>
+            <h3 class="game-title">Hearts</h3>
+            <p class="game-description">
+                Trick-avoiding game where players try to avoid penalty cards while managing their hands strategically.
+            </p>
+        </div>
+
+        <div class="card card-clickable game-card" onclick="selectGame('spades')">
+            <div class="game-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="60" height="48" fill="currentColor" class="bi bi-suit-spade-fill" viewBox="0 0 16 16">
+                    <path d="M7.184 11.246A3.5 3.5 0 0 1 1 9c0-1.602 1.14-2.633 2.66-4.008C4.986 3.792 6.602 2.33 8 0c1.398 2.33 3.014 3.792 4.34 4.992C13.86 6.367 15 7.398 15 9a3.5 3.5 0 0 1-6.184 2.246 20 20 0 0 0 1.582 2.907c.231.35-.02.847-.438.847H6.04c-.419 0-.67-.497-.438-.847a20 20 0 0 0 1.582-2.907"/>
+                </svg>
+            </div>
+            <h3 class="game-title">Spades</h3>
+            <p class="game-description">
+                Partnership trick-taking game with bidding, nil bids, and sandbagging penalties.
+            </p>
+        </div>
+
+        <div class="card game-card" style="opacity: 0.6;">
+            <div class="game-icon">
+                <i class="fa-solid fa-plus-circle"></i>
+            </div>
+            <h3 class="game-title">More Games</h3>
+            <p class="game-description">
+                Additional card games coming soon. Suggest a game and we'll add proper scoring support for it.
+            </p>
+        </div>
+    </div>
+
+    <div class="mt-4">
+        <div class="card">
+            <div class="flex justify-between items-center mb-2">
+                <h2 style="color: #2d3748; font-size: 1.5rem; font-weight: 600;">Recent Games</h2>
+                <a href="{{ url_for('game_history') }}" class="btn btn-secondary">
+                    <i class="fa-solid fa-history"></i>
+                    View All
+                </a>
+            </div>
+            <div id="recent-games">
+                <p style="color: #718096;">No recent games found. Start a new game above!</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function selectGame(gameType) {
+            window.location.href = `/game/${gameType}`;
+        }
+
+        fetch('/api/recent-games')
+            .then(response => response.json())
+            .then(games => {
+                const container = document.getElementById('recent-games');
+                if (games.length === 0) {
+                    return;
+                }
+                
+                container.innerHTML = games.map(game => `
+                    <div class="flex justify-between items-center" style="padding: 1rem; border-bottom: 1px solid #e2e8f0; last-child:border-bottom: none;">
+                        <div>
+                            <strong>${game.game_type.charAt(0).toUpperCase() + game.game_type.slice(1)}</strong>
+                            ${game.variant ? `(${game.variant})` : ''}
+                            <br>
+                            <small style="color: #718096;">${new Date(game.created_at).toLocaleDateString()}</small>
+                        </div>
+                        <div>
+                            <span class="badge ${game.status === 'completed' ? 'badge-success' : 'badge-warning'}">
+                                ${game.status}
+                            </span>
+                        </div>
+                    </div>
+                `).join('');
+            })
+            .catch(error => console.error('Error loading recent games:', error));
+    </script>
+
+    <style>
+        .badge {
+            padding: 0.25rem 0.75rem;
+            border-radius: 1rem;
+            font-size: 0.8rem;
+            font-weight: 500;
+            text-transform: uppercase;
+        }
+        .badge-success {
+            background: #c6f6d5;
+            color: #22543d;
+        }
+        .badge-warning {
+            background: #fed7d7;
+            color: #c53030;
+        }
+    </style>
+{% endblock %}

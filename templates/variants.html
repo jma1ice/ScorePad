@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block title %}{{ game_type.title() }} Variants{% endblock %}
+
+{% block content %}
+    <div class="text-center mb-4">
+        <h1 class="game-title-header" style="color: #2d3748; margin-bottom: 1rem;">
+            {{ game_type.title() }} Variants
+        </h1>
+        <p style="color: #84a5b1; font-size: 1.2rem;">Choose which variant you'd like to play</p>
+    </div>
+
+    <div class="card-grid">
+        {% for variant in variants %}
+        <div class="card card-clickable game-card" onclick="selectVariant('{{ variant.id }}')">
+            <div class="game-icon">
+                {% if game_type == 'bridge' %}
+                    {% if variant.id == 'draw' %}
+                        <i class="fa-solid fa-arrow-right-arrow-left"></i>
+                    {% elif variant.id == 'draw_discard' %}
+                        <i class="fa-solid fa-pencil"></i>
+                    {% elif variant.id == 'double_dummy' %}
+                        <i class="fa-solid fa-eye"></i>
+                    {% elif variant.id == 'single_dummy' %}
+                        <i class="fa-solid fa-dice-one"></i>
+                    {% elif variant.id == 'memory' %}
+                        <i class="fa-solid fa-brain"></i>
+                    {% else %}
+                        <i class="fa-solid fa-diamond"></i>
+                    {% endif %}
+                {% elif game_type == 'rummy' %}
+                    {% if variant.id == 'gin' %}
+                        <i class="fa-solid fa-cocktail"></i>
+                    {% else %}
+                        <i class="fa-solid fa-layer-group"></i>
+                    {% endif %}
+                {% else %}
+                    <i class="fa-solid fa-clone"></i>
+                {% endif %}
+            </div>
+            <h3 class="game-title">{{ variant.name }}</h3>
+            <p class="game-description">{{ variant.description }}</p>
+        </div>
+        {% endfor %}
+    </div>
+
+    <div class="text-center mt-4">
+        <a href="{{ url_for('index') }}" class="btn btn-secondary">
+            <i class="fa-solid fa-arrow-left"></i>
+            Back to Games
+        </a>
+    </div>
+
+    <script>
+        function selectVariant(variantId) {
+            window.location.href = `/setup/{{ game_type }}/${variantId}`;
+        }
+    </script>
+{% endblock %}
