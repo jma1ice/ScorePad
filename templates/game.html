@@ -9,6 +9,35 @@
     </div>
 
     <div class="game-layout">
+        <div class="game-sidebar-left">
+            {% if game_config.quick_tips %}
+                <div class="card quick-tips">
+                    <h3 class="tips-title">
+                        <i class="fa-solid fa-lightbulb"></i>
+                        Quick Tips
+                    </h3>
+                    <ul class="tips-list">
+                        {% for tip in game_config.quick_tips %}
+                            <li>{{ tip }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            {% endif %}
+
+            {% if game_config.rules_url %}
+                <div class="card mt-2">
+                    <h3 class="tips-title">
+                        <i class="fa-solid fa-book"></i>
+                        Rules
+                    </h3>
+                    <a href="{{ game_config.rules_url }}" target="_blank" class="external-link">
+                        <i class="fa-solid fa-external-link-alt"></i>
+                        View Complete Rules
+                    </a>
+                </div>
+            {% endif %}
+        </div>
+
         <div class="game-main">
             <div class="card score-section">
                 <h2 style="margin-bottom: 1.5rem; color: #2d3748; display: flex; align-items: center; gap: 0.5rem;">
@@ -119,21 +148,17 @@
                 </div>
             </div>
         </div>
-
-        <div class="game-sidebar">
-            {% if game_config.quick_tips %}
-                <div class="card quick-tips">
-                    <h3 class="tips-title">
-                        <i class="fa-solid fa-lightbulb"></i>
-                        Quick Tips
-                    </h3>
-                    <ul class="tips-list">
-                        {% for tip in game_config.quick_tips %}
-                            <li>{{ tip }}</li>
-                        {% endfor %}
-                    </ul>
+        
+        <div class="game-sidebar-right">
+            <div class="card">
+                <h3 class="tips-title">
+                    <i class="fa-solid fa-trophy"></i>
+                    Current Totals
+                </h3>
+                <div id="current-totals">
+                    <p style="color: #718096;">No scores yet</p>
                 </div>
-            {% endif %}
+            </div>
 
             {% if game_config.scoring_info %}
                 <div class="card mt-2">
@@ -148,29 +173,6 @@
                     </ul>
                 </div>
             {% endif %}
-
-            {% if game_config.rules_url %}
-                <div class="card mt-2">
-                    <h3 class="tips-title">
-                        <i class="fa-solid fa-book"></i>
-                        Rules
-                    </h3>
-                    <a href="{{ game_config.rules_url }}" target="_blank" class="external-link">
-                        <i class="fa-solid fa-external-link-alt"></i>
-                        View Complete Rules
-                    </a>
-                </div>
-            {% endif %}
-
-            <div class="card mt-2">
-                <h3 class="tips-title">
-                    <i class="fa-solid fa-trophy"></i>
-                    Current Totals
-                </h3>
-                <div id="current-totals">
-                    <p style="color: #718096;">No scores yet</p>
-                </div>
-            </div>
         </div>
     </div>
 
@@ -180,16 +182,42 @@
         let players = [];
         let scores = [];
         let currentRound = 1;
+        let gameData = null;
 
         document.addEventListener('DOMContentLoaded', function() {
             loadGameData();
-            loadScores();
         });
 
         function loadGameData() {
             const urlParams = new URLSearchParams(window.location.search);
-            players = urlParams.getAll('players');
+            const urlPlayers = urlParams.getAll('players');
             
+            if (urlPlayers.length > 0) {
+                players = urlPlayers;
+                populatePlayerDropdown();
+                loadScores();
+            } else {
+                fetch(`/api/game/${gameId}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        gameData = data.game;
+                        players = data.game.players;
+                        scores = data.scores;
+                        populatePlayerDropdown();
+                        updateScoreTable();
+                        updateCurrentTotals();
+                        updateCurrentRound();
+                    })
+                    .catch(error => {
+                        console.error('Error loading game data:', error);
+                        if (window.CardGameScorer) {
+                            CardGameScorer.showNotification('Error loading game data', 'error');
+                        }
+                    });
+            }
+        }
+
+        function populatePlayerDropdown() {
             const playerSelect = document.querySelector('select[name="player"]');
             playerSelect.innerHTML = '<option value="">Select Player</option>';
             players.forEach(player => {
@@ -237,8 +265,8 @@
                 let bidColumns = '';
                 if (gameType === 'bridge') {
                     const madeText = score.made_bid === null ? '-' : 
-                                score.made_bid === 'true' ? 'Made' :
-                                score.made_bid === 'false' ? 'Failed' : 'Made+';
+                                score.made_bid === 'true' || score.made_bid === true ? 'Made' :
+                                score.made_bid === 'false' || score.made_bid === false ? 'Failed' : 'Made+';
                     bidColumns = `
                         <td>${score.bid || '-'}</td>
                         <td>${madeText}</td>
@@ -255,8 +283,8 @@
                         <td>${score.notes || '-'}</td>
                         <td>
                             <button class="btn btn-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" 
-                                    onclick="deleteScore(${index})">
-                                <i class="fa-solid fa-trash"></i>
+                                    onclick="deleteScore(${score.id})">
+                                <i class="fas fa-trash"></i>
                             </button>
                         </td>
                     </tr>
@@ -328,13 +356,20 @@
                 if (data.success) {
                     loadScores();
                     clearForm();
+                    if (window.CardGameScorer) {
+                        CardGameScorer.showNotification('Score added successfully', 'success');
+                    }
                 } else {
-                    alert('Error adding score');
+                    if (window.CardGameScorer) {
+                        CardGameScorer.showNotification('Error adding score', 'error');
+                    }
                 }
             })
             .catch(error => {
                 console.error('Error:', error);
-                alert('Error adding score');
+                if (window.CardGameScorer) {
+                    CardGameScorer.showNotification('Error adding score', 'error');
+                }
             });
         });
 
@@ -343,25 +378,93 @@
             updateCurrentRound();
         }
 
-        function deleteScore(index) {
+        function deleteScore(scoreId) {
             if (confirm('Are you sure you want to delete this score entry?')) {
-                alert('Score deletion not implemented yet - would delete score at index ' + index);
+                fetch(`/api/score/${scoreId}`, {
+                    method: 'DELETE'
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        loadScores();
+                        if (window.CardGameScorer) {
+                            CardGameScorer.showNotification('Score deleted successfully', 'success');
+                        }
+                    } else {
+                        if (window.CardGameScorer) {
+                            CardGameScorer.showNotification('Error deleting score', 'error');
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.error('Error deleting score:', error);
+                    if (window.CardGameScorer) {
+                        CardGameScorer.showNotification('Error deleting score', 'error');
+                    }
+                });
             }
         }
 
         function finishGame() {
-            if (confirm('Are you sure you want to finish this game?')) {
-                alert('Game completion not implemented yet');
+            if (confirm('Are you sure you want to finish this game? You can still view it in history.')) {
+                fetch(`/api/game/${gameId}/finish`, {
+                    method: 'POST'
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        if (window.CardGameScorer) {
+                            CardGameScorer.showNotification('Game finished successfully!', 'success');
+                        }
+                        setTimeout(() => {
+                            window.location.href = '/history';
+                        }, 2000);
+                    } else {
+                        if (window.CardGameScorer) {
+                            CardGameScorer.showNotification('Error finishing game', 'error');
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.error('Error finishing game:', error);
+                    if (window.CardGameScorer) {
+                        CardGameScorer.showNotification('Error finishing game', 'error');
+                    }
+                });
             }
         }
 
         function exportScores() {
-            alert('Export functionality not implemented yet');
+            window.open(`/api/game/${gameId}/export`, '_blank');
+            if (window.CardGameScorer) {
+                CardGameScorer.showNotification('Export started - check your downloads', 'success');
+            }
         }
 
         function resetGame() {
-            if (confirm('Are you sure you want to reset this game? All scores will be deleted.')) {
-                alert('Game reset not implemented yet');
+            if (confirm('Are you sure you want to reset this game? All scores will be deleted but the game will remain active.')) {
+                fetch(`/api/game/${gameId}/reset`, {
+                    method: 'POST'
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        loadScores();
+                        if (window.CardGameScorer) {
+                            CardGameScorer.showNotification('Game reset successfully', 'success');
+                        }
+                    } else {
+                        if (window.CardGameScorer) {
+                            CardGameScorer.showNotification('Error resetting game', 'error');
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.error('Error resetting game:', error);
+                    if (window.CardGameScorer) {
+                        CardGameScorer.showNotification('Error resetting game', 'error');
+                    }
+                });
             }
         }
     </script>
