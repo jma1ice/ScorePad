@@ -156,6 +156,10 @@
         .result-placeholder {
             text-align: center;
             color: #a0aec0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
         }
 
         .result-placeholder i {
@@ -202,37 +206,7 @@
             padding-top: 1rem;
             border-top: 1px solid rgba(72, 187, 120, 0.2);
             text-align: left;
-        }
-
-        .word-entry {
-            margin-bottom: 1.25rem;
             position: relative;
-        }
-
-        .word-entry:last-child {
-            margin-bottom: 0;
-        }
-
-        .pos-header {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            cursor: pointer;
-            user-select: none;
-        }
-
-        .expand-icon {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            width: 1.25rem;
-            height: 1.25rem;
-            flex-shrink: 0;
-            transition: transform 0.2s ease;
-        }
-
-        .expand-icon.expanded {
-            transform: rotate(90deg);
         }
 
         .pos-label {
@@ -255,9 +229,6 @@
             transition: max-height 0.3s ease;
             margin-top: 0.5rem;
             position: relative;
-        }
-
-        .definitions-list:not(.collapsed) {
             border: 1px solid rgba(72, 187, 120, 0.25);
             border-radius: 6px;
             padding: 0.5rem 2rem 0.5rem 0.5rem;
@@ -266,6 +237,24 @@
         .definitions-list.collapsed {
             max-height: 0;
             overflow: hidden;
+            margin-top: 0;
+        }
+
+        .definition-pos-marker {
+            display: inline-block;
+            background: rgba(72, 187, 120, 0.15);
+            color: #22543d;
+            padding: 0.25rem 0.75rem;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            list-style: none;
+            margin: 0.5rem 0 0.75rem 0;
+            font-style: normal;
+        }
+
+        .definition-pos-marker:first-child {
             margin-top: 0;
         }
 
@@ -490,36 +479,42 @@
             if (data.valid) {
                 let definitionHTML = '';
                 if (data.word_entries && data.word_entries.length > 0) {
-                    const entriesHTML = data.word_entries.map((entry, entryIdx) => {
-                        const defsList = entry.definitions.map((def, idx) => `
-                            <li class="definition-item">
-                                <span class="definition-number">${idx + 1}</span>
-                                <span class="definition-text">${escapeHtml(def)}</span>
-                            </li>
-                        `).join('');
-                        
-                        const entryId = `entry-${entryIdx}`;
-                        return `
-                            <div class="word-entry">
-                                <div class="pos-header" onclick="toggleEntry('${entryId}')">
-                                    <span class="expand-icon" id="${entryId}-icon">
-                                        <i class="fa-solid fa-chevron-right"></i>
-                                    </span>
-                                    <span class="pos-label">${escapeHtml(entry.pos)}</span>
-                                </div>
-                                <ol class="definitions-list collapsed" id="${entryId}">
-                                    ${defsList}
-                                </ol>
-                                <div class="scroll-indicator hidden" id="${entryId}-indicator">
-                                    <i class="fa-solid fa-chevron-down"></i>
-                                </div>
-                            </div>
-                        `;
-                    }).join('');
+                    // Build all definitions in one combined list
+                    let allDefinitions = [];
+                    data.word_entries.forEach((entry) => {
+                        entry.definitions.forEach((def, idx) => {
+                            allDefinitions.push({
+                                pos: entry.pos,
+                                number: idx + 1,
+                                text: def,
+                                isFirst: idx === 0
+                            });
+                        });
+                    });
+                    
+                    const defsList = allDefinitions.map((item, globalIdx) => `
+                        ${item.isFirst && globalIdx > 0 ? `<li class="definition-pos-marker">${escapeHtml(item.pos)}</li>` : ''}
+                        <li class="definition-item">
+                            <span class="definition-number">${item.number}</span>
+                            <span class="definition-text">${escapeHtml(item.text)}</span>
+                        </li>
+                    `).join('');
+                    
+                    // Add POS label at the start
+                    const firstPos = data.word_entries[0].pos;
+                    const defsListWithFirstPos = `
+                        <li class="definition-pos-marker">${escapeHtml(firstPos)}</li>
+                        ${defsList}
+                    `;
                     
                     definitionHTML = `
                         <div class="definition-section">
-                            ${entriesHTML}
+                            <ol class="definitions-list" id="all-definitions">
+                                ${defsListWithFirstPos}
+                            </ol>
+                            <div class="scroll-indicator hidden" id="all-definitions-indicator">
+                                <i class="fa-solid fa-chevron-down"></i>
+                            </div>
                         </div>
                     `;
                 }
@@ -543,31 +538,19 @@
             }
 
             resultContainer.innerHTML = resultHTML;
-        }
-
-        function toggleEntry(entryId) {
-            const list = document.getElementById(entryId);
-            const icon = document.getElementById(`${entryId}-icon`);
-            const indicator = document.getElementById(`${entryId}-indicator`);
             
-            if (list && icon) {
-                list.classList.toggle('collapsed');
-                icon.classList.toggle('expanded');
-                
-                // Add scroll listener when expanding
-                if (!list.classList.contains('collapsed') && indicator) {
-                    // Delay to allow DOM to update with max-height transition (transition is 0.3s)
+            // Setup scroll indicator for all definitions
+            if (data.valid && data.word_entries) {
+                const list = document.getElementById('all-definitions');
+                const indicator = document.getElementById('all-definitions-indicator');
+                if (list && indicator) {
                     setTimeout(() => {
                         checkScrollIndicator(list, indicator);
-                    }, 350);
+                    }, 100);
                     
-                    // Add scroll event listener
                     list.addEventListener('scroll', function() {
                         checkScrollIndicator(list, indicator);
                     });
-                } else if (indicator) {
-                    // Hide indicator when collapsing
-                    indicator.classList.add('hidden');
                 }
             }
         }
