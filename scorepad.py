@@ -1,8 +1,47 @@
-import sqlite3, uuid, json, csv, io
+import sqlite3, uuid, json, csv, io, os
 from datetime import datetime
 from flask import Flask, render_template, request, jsonify, redirect, url_for, session, make_response
 
 app = Flask(__name__)
+
+# Load dictionary cache
+_dictionary_words = None
+_definitions = None
+
+def load_dictionary():
+    global _dictionary_words
+    if _dictionary_words is None:
+        dict_path = os.path.join(os.path.dirname(__file__), 'dictionary', 'NWL2023.txt')
+        try:
+            with open(dict_path, 'r') as f:
+                _dictionary_words = set(word.strip().upper() for word in f.readlines() if word.strip())
+        except FileNotFoundError:
+            _dictionary_words = set()
+    return _dictionary_words
+
+def load_definitions():
+    global _definitions
+    if _definitions is None:
+        def_path = os.path.join(os.path.dirname(__file__), 'dictionary', 'dictionary.json')
+        try:
+            with open(def_path, 'r', encoding='utf-8') as f:
+                definitions_list = json.load(f)
+                _definitions = {}
+                for entry in definitions_list:
+                    word = entry.get('word', '').upper()
+                    definitions = entry.get('definitions', [])
+                    pos = entry.get('pos', '')
+                    if word and definitions:
+                        # Create a list to hold all parts of speech for a word
+                        if word not in _definitions:
+                            _definitions[word] = []
+                        _definitions[word].append({
+                            'pos': pos,
+                            'definitions': definitions
+                        })
+        except (FileNotFoundError, json.JSONDecodeError):
+            _definitions = {}
+    return _definitions
 
 def init_db():
     conn = sqlite3.connect('card_games.db')
@@ -351,6 +390,37 @@ def game_history():
     conn.close()
     
     return render_template('history.html', games=games)
+
+@app.route('/scrabble')
+def scrabble():
+    return render_template('scrabble.html')
+
+@app.route('/api/search-word')
+def search_word():
+    word = request.args.get('word', '').strip().upper()
+    
+    if not word:
+        return jsonify({'valid': False, 'message': 'Please enter a word'})
+    
+    if len(word) < 3:
+        return jsonify({'valid': False, 'message': 'Word must be at least 3 letters'})
+    
+    dictionary = load_dictionary()
+    is_valid = word in dictionary
+    
+    result = {
+        'word': word,
+        'valid': is_valid,
+        'message': f"'{word}' is {'VALID' if is_valid else 'NOT VALID'} in NWL2023"
+    }
+    
+    # Add definitions if word is valid
+    if is_valid:
+        definitions = load_definitions()
+        if word in definitions:
+            result['word_entries'] = definitions[word]
+    
+    return jsonify(result)
 
 if __name__ == '__main__':
     app.secret_key = 'your-secret-key-change-this'
