@@ -1,8 +1,22 @@
-import sqlite3, uuid, json, csv, io
+import sqlite3, uuid, json, csv, io, os
 from datetime import datetime
 from flask import Flask, render_template, request, jsonify, redirect, url_for, session, make_response
 
 app = Flask(__name__)
+
+# Load dictionary cache
+_dictionary_words = None
+
+def load_dictionary():
+    global _dictionary_words
+    if _dictionary_words is None:
+        dict_path = os.path.join(os.path.dirname(__file__), 'dictionary', 'NWL2023.txt')
+        try:
+            with open(dict_path, 'r') as f:
+                _dictionary_words = set(word.strip().upper() for word in f.readlines() if word.strip())
+        except FileNotFoundError:
+            _dictionary_words = set()
+    return _dictionary_words
 
 def init_db():
     conn = sqlite3.connect('card_games.db')
@@ -351,6 +365,29 @@ def game_history():
     conn.close()
     
     return render_template('history.html', games=games)
+
+@app.route('/scrabble')
+def scrabble():
+    return render_template('scrabble.html')
+
+@app.route('/api/search-word')
+def search_word():
+    word = request.args.get('word', '').strip().upper()
+    
+    if not word:
+        return jsonify({'valid': False, 'message': 'Please enter a word'})
+    
+    if len(word) < 3:
+        return jsonify({'valid': False, 'message': 'Word must be at least 3 letters'})
+    
+    dictionary = load_dictionary()
+    is_valid = word in dictionary
+    
+    return jsonify({
+        'word': word,
+        'valid': is_valid,
+        'message': f"'{word}' is {'VALID' if is_valid else 'NOT VALID'} in NWL2023"
+    })
 
 if __name__ == '__main__':
     app.secret_key = 'your-secret-key-change-this'
