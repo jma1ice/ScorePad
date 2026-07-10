@@ -4,6 +4,9 @@ from flask import Flask, render_template, request, jsonify, redirect, url_for, s
 
 app = Flask(__name__)
 
+DB_PATH = os.path.join(os.path.dirname(__file__), 'data', 'card_games.db')
+os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
+
 # Load dictionary cache
 _dictionary_words = None
 _definitions = None
@@ -44,7 +47,7 @@ def load_definitions():
     return _definitions
 
 def init_db():
-    conn = sqlite3.connect('card_games.db')
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     
     cursor.execute('''
@@ -153,7 +156,7 @@ def play_game(game_type, variant):
         game_id = str(uuid.uuid4())
         players = request.args.getlist('players')
         
-        conn = sqlite3.connect('card_games.db')
+        conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
         cursor.execute('''
             INSERT INTO games (id, game_type, variant, players, data)
@@ -173,7 +176,7 @@ def add_score():
     data = request.json
     game_id = data['game_id']
     
-    conn = sqlite3.connect('card_games.db')
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     
     cursor.execute('''
@@ -189,7 +192,7 @@ def add_score():
 
 @app.route('/api/scores/<game_id>')
 def get_scores(game_id):
-    conn = sqlite3.connect('card_games.db')
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     
     cursor.execute('''
@@ -207,7 +210,7 @@ def get_scores(game_id):
 
 @app.route('/api/recent-games')
 def get_recent_games():
-    conn = sqlite3.connect('card_games.db')
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     
     cursor.execute('''
@@ -228,7 +231,7 @@ def get_recent_games():
 
 @app.route('/api/game/<game_id>')
 def get_game_details(game_id):
-    conn = sqlite3.connect('card_games.db')
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     
     cursor.execute('''
@@ -265,7 +268,7 @@ def get_game_details(game_id):
 
 @app.route('/api/game/<game_id>/finish', methods=['POST'])
 def finish_game(game_id):
-    conn = sqlite3.connect('card_games.db')
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     
     cursor.execute('''
@@ -281,7 +284,7 @@ def finish_game(game_id):
 
 @app.route('/api/game/<game_id>/export')
 def export_game(game_id):
-    conn = sqlite3.connect('card_games.db')
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     
     cursor.execute('''
@@ -334,7 +337,7 @@ def export_game(game_id):
 
 @app.route('/api/game/<game_id>/reset', methods=['POST'])
 def reset_game(game_id):
-    conn = sqlite3.connect('card_games.db')
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     
     cursor.execute('DELETE FROM scores WHERE game_id = ?', (game_id,))
@@ -352,7 +355,7 @@ def reset_game(game_id):
 
 @app.route('/api/game/<game_id>', methods=['DELETE'])
 def delete_game(game_id):
-    conn = sqlite3.connect('card_games.db')
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     
     cursor.execute('DELETE FROM scores WHERE game_id = ?', (game_id,))
@@ -366,7 +369,7 @@ def delete_game(game_id):
 
 @app.route('/api/score/<int:score_id>', methods=['DELETE'])
 def delete_score(score_id):
-    conn = sqlite3.connect('card_games.db')
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     
     cursor.execute('DELETE FROM scores WHERE id = ?', (score_id,))
@@ -378,7 +381,7 @@ def delete_score(score_id):
 
 @app.route('/history')
 def game_history():
-    conn = sqlite3.connect('card_games.db')
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     
     cursor.execute('''

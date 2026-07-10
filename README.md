@@ -12,7 +12,7 @@ services:
     image: jma1ice/scorepad:latest
     restart: unless-stopped
     volumes:
-      - scorepad_data:/app
+      - scorepad_data:/app/data
     ports:
       - 2283:2283
 
